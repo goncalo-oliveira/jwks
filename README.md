@@ -33,12 +33,6 @@ To verify that the JWKS was created successfully, you can use the `status` comma
 jwks status
 ```
 
-To indicate an explicit path, use the `--jwks-path` option:
-
-```bash
-jwks status --jwks-path .
-```
-
 ## Order of Precedence
 
 When using the JWKS tool, it determines which JWKS to use based on the following order of precedence:
@@ -46,6 +40,16 @@ When using the JWKS tool, it determines which JWKS to use based on the following
 1. **Explicit Path**: If a path is provided as an argument to the command, the tool uses the JWKS located at that path.
 2. **Project-Specific JWKS**: If no explicit path is provided, the tool checks for a `.jwks` folder in the current working directory and uses it if found.
 3. **Global JWKS**: If neither of the above is found, the tool defaults to using the global JWKS located in the user's home directory.
+
+Most commands support the `--jwks-path` option to explicitly specify the path to the JWKS, overriding the default behavior.
+
+## Generating Keys
+
+Before issuing tokens, ensure that the JWKS contains a signing key pair. To generate a new key pair, use the `keygen` command:
+
+```bash
+jwks keygen
+```
 
 ## Issuing Tokens
 
@@ -55,10 +59,5 @@ To issue a new JWT using the JWKS, use the `token` command:
 jwks token --aud your-audience --sub your-subject --claim key1=value1 --claim key2=value2
 ```
 
-To indicate an explicit JWKS path, use the `--jwks-path` option:
-
-```bash
-jwks token --jwks-path . --aud your-audience --sub your-subject --claim key1=value1 --claim key2=value2
-```
-
-The `--aud` and `--sub` options are equivalent to `--claim aud=...` and `--claim sub=...`, respectively.
+> [!TIP]
+> The `--aud` and `--sub` options are equivalent to `--claim aud=...` and `--claim sub=...`, respectively.
