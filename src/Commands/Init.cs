@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Jwks.Serialization;
+using Jwks.Store;
 using Jwks.Utils;
 using Microsoft.IdentityModel.Tokens;
 using Spectre.Console;
@@ -23,17 +23,17 @@ public sealed partial class InitCommand : Command<InitCommand.Settings>
 
     public override int Execute( CommandContext context, Settings settings, CancellationToken cancellationToken )
     {
-        var path = JwksDefaults.CombinePath( settings.Path );
-
-        if ( File.Exists( Path.Combine( path, "jwks.json" ) ) && !settings.Force )
+        if ( JwksStore.TryGetValue( settings.Path, out _ ) && !settings.Force )
         {
             AnsiConsole.MarkupLine( "[red]Error:[/] JWKS already initialized. Use --force to re-initialize." );
             return 1;
         }
 
+        var path = JwksStore.CombinePath( settings.Path );
+
         CreateLocalJwksAuthority( path );
 
-        Console.WriteLine( $"Source: {PathHelper.ShrinkHomePath( path )}" );
+        Console.WriteLine( $"Store: {PathHelper.ShrinkHomePath( path )}" );
         Console.WriteLine();
         AnsiConsole.MarkupLine( "[green]Success:[/] JWKS initialized successfully." );
 

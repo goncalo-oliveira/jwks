@@ -1,6 +1,5 @@
 using System.ComponentModel;
-using Jwks.Utils;
-using Microsoft.IdentityModel.Tokens;
+using Jwks.Store;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -17,28 +16,17 @@ public sealed class StatusCommand : Command<StatusCommand.Settings>
 
     public override int Execute( CommandContext context, Settings settings, CancellationToken cancellationToken )
     {
-        var path = JwksDefaults.GetJwksSourcePath( settings.Path );
-        
-        if ( string.IsNullOrEmpty( path ) || !File.Exists( Path.Combine( path, "jwks.json" ) ) )
+        if ( !JwksStore.TryGetValue( settings.Path, out var store ) )
         {
-            AnsiConsole.MarkupLine( "[red]Error:[/] Not initialized." );
-            
+            StdErr.Out.MarkupLine( "[red]Error:[/] Not initialized." );
+
             return 1;
         }
 
-        var json = File.ReadAllText( Path.Combine( path, "jwks.json" ) );
-        var jwks = JsonWebKeySet.Create( json );
-
-        if ( jwks == null )
-        {
-            AnsiConsole.MarkupLine( "[red]Error:[/] Failed to parse JWKS file." );
-            return 1;
-        }
-
-        Console.WriteLine( $"Source: {PathHelper.ShrinkHomePath( path )}" );
+        Console.WriteLine( $"Store: {store}" );
 
         Console.WriteLine();
-        if ( jwks.Keys.Count == 0 )
+        if ( store.KeySet.Keys.Count == 0 )
         {
             AnsiConsole.MarkupLine( "[yellow]No keys found.[/]" );
         }
@@ -47,7 +35,7 @@ public sealed class StatusCommand : Command<StatusCommand.Settings>
             AnsiConsole.MarkupLine( "Keys:" );
         }
 
-        foreach ( var key in jwks.Keys )
+        foreach ( var key in store.KeySet.Keys )
         {
             var name = string.Empty;
             if ( key.AdditionalData.TryGetValue( "name", out var nameObj ) && nameObj is string nameStr )
@@ -55,7 +43,7 @@ public sealed class StatusCommand : Command<StatusCommand.Settings>
                 name = $", name: [blue]{nameStr}[/]";
             }
 
-            AnsiConsole.MarkupLine( $"- kid: [green]{key.Kid[..12]}[/]... ({key.Alg}){name}" );
+            AnsiConsole.MarkupLine( $"- kid: [green]{key.Kid[..16]}[/] ({key.Alg}){name}" );
         }
 
         Console.WriteLine();

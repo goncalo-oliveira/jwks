@@ -26,11 +26,15 @@ app.Configure( config =>
 
     config.AddCommand<KeygenCommand>( "keygen" )
         .WithDescription( "Generate a new key and add it to the JWKS." )
-        .WithExample( ["keygen", "--name", "my-key"] );
+        .WithExample( ["keygen", "--name", "key_name"] );
 
     config.AddCommand<KeyremCommand>( "keyrm" )
         .WithDescription( "Remove a key from the JWKS." )
-        .WithExample( ["keyrm", "your-key-id"] );
+        .WithExample( ["keyrm", "key_id"] );
+
+    config.AddCommand<ExportCommand>( "export" )
+        .WithDescription( "Export an existing key from the JWKS." )
+        .WithExample( ["export", "key_id", "--out", "."] );
 
     config.AddCommand<StatusCommand>( "status" )
         .WithDescription( "Show the status of the JWKS." )
@@ -38,7 +42,7 @@ app.Configure( config =>
 
     config.AddCommand<TokenCommand>( "token" )
         .WithDescription( "Issue a JWT token from a local JWKS." )
-        .WithExample( ["token", "--dry-run"] );
+        .WithExample( ["token", "--sub", "subject_value", "--aud", "audience_value"] );
 } );
 
 if ( Console.IsOutputRedirected )

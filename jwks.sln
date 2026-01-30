@@ -2,6 +2,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tests", "tests\tests.csproj", "{9CF47860-2CEA-F379-09D8-9AEF27965D12}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "jwks", "src\jwks.csproj", "{EFBEA895-594E-B9B0-F12C-1ECB7293F12F}"
 EndProject
 Global
@@ -10,6 +12,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9CF47860-2CEA-F379-09D8-9AEF27965D12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CF47860-2CEA-F379-09D8-9AEF27965D12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CF47860-2CEA-F379-09D8-9AEF27965D12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CF47860-2CEA-F379-09D8-9AEF27965D12}.Release|Any CPU.Build.0 = Release|Any CPU
 		{EFBEA895-594E-B9B0-F12C-1ECB7293F12F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EFBEA895-594E-B9B0-F12C-1ECB7293F12F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EFBEA895-594E-B9B0-F12C-1ECB7293F12F}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -19,6 +25,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {93E8BB15-123D-4460-8693-0F0F37FDBF8F}
+		SolutionGuid = {99FDF20A-8B91-418D-B352-B3E4329F997D}
 	EndGlobalSection
 EndGlobal

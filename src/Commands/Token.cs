@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Faactory.Types;
+using Jwks.Store;
 using Jwks.Utils;
 using Microsoft.IdentityModel.Tokens;
 using Spectre.Console;
@@ -30,33 +31,31 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
         [Description( "Subject claim for the issued token. Same as `--claim sub=`." )]
         public string? Subject { get; set; }
 
-        [CommandOption( "--claim" )]
+        [CommandOption( "--claim <CLAIMS>" )]
         [Description( "Additional custom claims in the format 'type=value'." )]
-        public List<string> Claims { get; set; } = [];
+        public string[] Claims { get; set; } = [];
 
         [CommandOption( "--ttl" )]
         [Description( "Time-to-live for the token (e.g., '15m', '1h'). Default is 1 hour." )]
         public string? Ttl { get; set; }
 
-        [CommandOption( "-q|--quiet" )]
+        [CommandOption( "--silent" )]
         [Description( "Suppress output except for the token value." )]
-        public bool Quiet { get; set; }
+        public bool Silent { get; set; }
     }
 
     public override int Execute( CommandContext context, Settings settings, CancellationToken cancellationToken )
     {
-        var path = JwksDefaults.GetJwksSourcePath( settings.Path );
-
-        if ( string.IsNullOrEmpty( path ) || !File.Exists( Path.Combine( path, "jwks.json" ) ) )
+        if ( !JwksStore.TryGetValue( settings.Path, out var store ) )
         {
             StdErr.Out.MarkupLine( "[red]Error:[/] Not initialized." );
-            
+
             return 1;
         }
 
-        if ( !settings.Quiet )
+        if ( !settings.Silent )
         {
-            Console.WriteLine( $"Source: {PathHelper.ShrinkHomePath( path )}" );
+            Console.WriteLine( $"Store: {store}" );
             Console.WriteLine();
         }
 
@@ -103,15 +102,13 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
             ttl = TimeSpan.FromHours(1);
         }
 
-        var jwks = JsonWebKeySet.Create( File.ReadAllText( Path.Combine( path, "jwks.json" ) ) );
-
-        if ( jwks.Keys.Count == 0 )
+        if ( store.KeySet.Keys.Count == 0 )
         {
             StdErr.Out.MarkupLine( "[red]Error:[/] No keys available in the JWKS." );
 
             return 1;
         }
-        else if ( jwks.Keys.Count > 1 && string.IsNullOrEmpty( settings.Kid ) )
+        else if ( store.KeySet.Keys.Count > 1 && string.IsNullOrEmpty( settings.Kid ) )
         {
             StdErr.Out.MarkupLine( "[red]Error:[/] Multiple keys available. Please specify a key ID using --kid." );
 
@@ -119,8 +116,8 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
         }
 
         var selectedJwk = string.IsNullOrEmpty( settings.Kid )
-            ? [jwks.Keys.First()]
-            : jwks.Keys.Where( k => k.Kid.StartsWith( settings.Kid ) ).ToArray();
+            ? [store.KeySet.Keys.First()]
+            : store.SelectKeys( settings.Kid );
 
         if ( selectedJwk.Length == 0 )
         {
@@ -137,7 +134,7 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
 
         var kid = selectedJwk.Single().Kid;
 
-        var signingCredentials = CreateSigningCredentials( kid, path );
+        var signingCredentials = CreateSigningCredentials( kid, store );
 
         if ( signingCredentials is null )
         {
@@ -157,9 +154,9 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
 
             var expires = ReadTokenExpiration( token );
 
-            if ( !settings.Quiet )
+            if ( !settings.Silent )
             {
-                AnsiConsole.MarkupLine( $"[green]✔[/] Token issued (kid=[green]{kid![..12]}[/]..., exp=[blue]{expires:yyyy-MM-ddTHH:mmZ}[/])" );
+                AnsiConsole.MarkupLine( $"[green]✔[/] Token issued (kid=[green]{kid![..16]}[/], exp=[blue]{expires:yyyy-MM-ddTHH:mmZ}[/])" );
                 Console.WriteLine();
             }
 
@@ -190,34 +187,37 @@ public sealed class TokenCommand : Command<TokenCommand.Settings>
         return tokenHandler.WriteToken( token );
     }
 
-    private static SigningCredentials? CreateSigningCredentials( string kid, string path )
+    internal static SigningCredentials? CreateSigningCredentials( string kid, IPrivateKeyCollection privateKeys )
     {
-        var keyFilePath = Path.Combine( path, $"{kid}.key" );
-
-        if ( !File.Exists( keyFilePath ) )
+        ReadOnlySpan<byte> privateKey;
+        try
         {
-            AnsiConsole.MarkupLine( "[red]Error:[/] Signing key file not found." );
+            privateKey = privateKeys.ExportPrivateKey( kid );
+        }
+        catch ( FileNotFoundException )
+        {
+            StdErr.Out.MarkupLine( "[red]Error:[/] Signing key file not found." );
 
             return null;
         }
 
         var ecdsa = ECDsa.Create();
 
-        ecdsa.ImportFromPem( File.ReadAllText( keyFilePath ) );
+        ecdsa.ImportPkcs8PrivateKey( privateKey, out _ );
 
         // export public key to validate key parameters
         var publicParams = ecdsa.ExportParameters( includePrivateParameters: false );
 
         if ( publicParams.Q.X is null || publicParams.Q.Y is null )
         {
-            AnsiConsole.MarkupLine( "[red]Error:[/] Invalid EC public key parameters." );
+            StdErr.Out.MarkupLine( "[red]Error:[/] Invalid EC public key parameters." );
 
             return null;
         }
 
         if ( publicParams.Q.X.Length != 32 || publicParams.Q.Y.Length != 32 )
         {
-            AnsiConsole.MarkupLine( "[red]Error:[/] Unexpected EC key size. Expected P-256 key." );
+            StdErr.Out.MarkupLine( "[red]Error:[/] Unexpected EC key size. Expected P-256 key." );
 
             return null;
         }

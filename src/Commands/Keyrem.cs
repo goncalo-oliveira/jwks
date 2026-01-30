@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using Jwks.Serialization;
-using Jwks.Utils;
-using Microsoft.IdentityModel.Tokens;
+using Jwks.Store;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -32,19 +30,17 @@ public sealed partial class KeyremCommand : Command<KeyremCommand.Settings>
             return 1;
         }
 
-        var path = JwksDefaults.GetJwksSourcePath( settings.Path );
-
-        if ( string.IsNullOrEmpty( path ) || !File.Exists( Path.Combine( path, "jwks.json" ) ) )
+        if ( !JwksStore.TryGetValue( settings.Path, out var store ) )
         {
             StdErr.Out.MarkupLine( "[red]Error:[/] Not initialized." );
-            
+
             return 1;
         }
 
-        Console.WriteLine( $"Source: {PathHelper.ShrinkHomePath( path )}" );
+        Console.WriteLine( $"Store: {store}" );
         Console.WriteLine();
 
-        var keys = SelectJsonWebKeys( settings.Kid, path );
+        var keys = store.SelectKeys( settings.Kid );
 
         if ( keys.Length == 0 )
         {
@@ -53,63 +49,30 @@ public sealed partial class KeyremCommand : Command<KeyremCommand.Settings>
             return 1;
         }
 
-        if ( !RemoveJsonWebKeys( keys, path, !settings.Yes ) )
-        {
-            return 1;
-        }
-
-        foreach ( var key in keys )
-        {
-            AnsiConsole.MarkupLine( $"[green]✔[/] Key removed (kid=[green]{key.Kid[..12]}[/]...)" );
-        }
-
-        return 0;
-    }
-
-    private static JsonWebKey[] SelectJsonWebKeys( string kid, string path )
-    {
-        var jwksPath = Path.Combine( path, "jwks.json" );
-
-        var jwks = JsonWebKeySet.Create( File.ReadAllText( jwksPath ) );
-
-        return jwks.Keys.Where( k => k.Kid.StartsWith( kid, StringComparison.Ordinal ) ).ToArray();
-    }
-
-    private static bool RemoveJsonWebKeys( JsonWebKey[] keys, string path, bool prompt = true )
-    {
-        if ( prompt )
+        if ( !settings.Yes )
         {
             AnsiConsole.MarkupLine( $"The following key(s) will be removed:" );
 
             foreach ( var key in keys )
             {
-                AnsiConsole.MarkupLine( $"- [yellow]{key.Kid[..12]}[/]..." );
+                AnsiConsole.MarkupLine( $"- [yellow]{key.Kid[..16]}[/]" );
             }
 
             if ( !AnsiConsole.Confirm( "Continue?", false ) )
             {
-                return false;
+                return 1;
             }
         }
 
-        var jwksPath = Path.Combine( path, "jwks.json" );
 
-        var jwks = JsonWebKeySet.Create( File.ReadAllText( jwksPath ) );
+        store.RemoveKeys( keys );
 
         foreach ( var key in keys )
         {
-            jwks.Keys.Remove( jwks.Keys.Single( k => k.Kid == key.Kid ) );
-
-            // delete private key file
-            File.Delete( Path.Combine( path, $"{key.Kid}.key" ) );
+            AnsiConsole.MarkupLine( $"[green]✔[/] Key removed (kid=[green]{key.Kid[..16]}[/])" );
         }
 
-        File.WriteAllBytes(
-            jwksPath,
-            Json.SerializeToUtf8Bytes( jwks )
-        );
-
-        return true;
+        return 0;
     }
 
     [System.Text.RegularExpressions.GeneratedRegex( @"^[a-zA-Z0-9_-]+$" )]

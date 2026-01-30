@@ -35,13 +35,12 @@ jwks status
 
 ## Order of Precedence
 
-When using the JWKS tool, it determines which JWKS to use based on the following order of precedence:
+When using the JWKS tool, it determines which JWKS to use based on a certain order of precedence, if no explicit path is provided:
 
-1. **Explicit Path**: If a path is provided as an argument to the command, the tool uses the JWKS located at that path.
-2. **Project-Specific JWKS**: If no explicit path is provided, the tool checks for a `.jwks` folder in the current working directory and uses it if found.
-3. **Global JWKS**: If neither of the above is found, the tool defaults to using the global JWKS located in the user's home directory.
+1. **Current Directory**: The tool checks for a `.jwks` folder in the current working directory and uses it if found.
+2. **Global JWKS**: The tool checks for a `.jwks` folder in the user's home directory and uses it if found.
 
-Most commands support the `--jwks-path` option to explicitly specify the path to the JWKS, overriding the default behavior.
+Most commands (except `init`) support the `--jwks-path` option to explicitly specify the path to the JWKS, ignoring the order of precedence.
 
 ## Generating Keys
 
@@ -49,6 +48,12 @@ Before issuing tokens, ensure that the JWKS contains a signing key pair. To gene
 
 ```bash
 jwks keygen
+```
+
+Keys can also be generated *ad-hoc*, without storing them in the JWKS, by using the `--export` option. This outputs the generated key pair directly to the console or, if combined with the `--out` option, to a specified path:
+
+```bash
+jwks keygen --export --out .
 ```
 
 ## Issuing Tokens

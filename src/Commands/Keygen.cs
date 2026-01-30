@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Security.Cryptography;
-using Jwks.Serialization;
-using Jwks.Utils;
+using Jwks.Store;
 using Microsoft.IdentityModel.Tokens;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -35,12 +34,10 @@ public sealed partial class KeygenCommand : Command<KeygenCommand.Settings>
 
     public override int Execute( CommandContext context, Settings settings, CancellationToken cancellationToken )
     {
-        var path = JwksDefaults.GetJwksSourcePath( settings.Path );
-
-        if ( string.IsNullOrEmpty( path ) || !File.Exists( Path.Combine( path, "jwks.json" ) ) )
+        if ( !JwksStore.TryGetValue( settings.Path, out var store ) )
         {
             StdErr.Out.MarkupLine( "[red]Error:[/] Not initialized." );
-            
+
             return 1;
         }
 
@@ -63,30 +60,41 @@ public sealed partial class KeygenCommand : Command<KeygenCommand.Settings>
         }
 
         // export to stdout only if --export is specified without --out
-        // when exporting to stdout, we use a quiet output (no verbose messages)
+        // when exporting to stdout, we use a silent output (no verbose messages)
         var exportToStdout = settings.Export && string.IsNullOrEmpty( settings.OutputPath );
 
         if ( !exportToStdout )
         {
-            Console.WriteLine( $"Source: {PathHelper.ShrinkHomePath( path )}" );
+            Console.WriteLine( $"Store: {store}" );
             Console.WriteLine();
         }
 
-        var (jwk,keyBase64) = CreateJsonWebKey( settings.Name, path, !settings.Export );
+        var (jwk, privateKey) = CreateJsonWebKey( settings.Name, store.Path );
 
         if ( !settings.Export )
         {
-            AddJsonWebKey( jwk, path );
+            store.AddKey( jwk, privateKey );
         }
 
         if ( !exportToStdout )
         {
-            AnsiConsole.MarkupLine( $"[green]✔[/] Key generated (kid=[green]{jwk.Kid![..12]}[/]...)" );
+            AnsiConsole.MarkupLine( $"[green]✔[/] Key generated (kid=[green]{jwk.Kid![..16]}[/])" );
         }
 
         if ( settings.Export )
         {
-            ExportJsonWebKey( jwk, keyBase64, settings.OutputPath );
+            // include private key material always,
+            // because when generating a new key for export
+            // the private key exists only in memory
+            ExportCommand.ExportKeySet(
+                new JsonWebKeySet { Keys = { jwk } },
+                new PrivateKeyCollection
+                {
+                    { jwk.Kid, privateKey }
+                },
+                settings.OutputPath,
+                includePrivate: true
+            );
 
             if ( !exportToStdout )
             {
@@ -97,7 +105,7 @@ public sealed partial class KeygenCommand : Command<KeygenCommand.Settings>
         return 0;
     }
 
-    private static (JsonWebKey,string) CreateJsonWebKey( string? name, string path, bool writeToFile )
+    private static (JsonWebKey Jwk, byte[] PrivateKey) CreateJsonWebKey( string? name, string path )
     {
         using var ecdsa = ECDsa.Create( ECCurve.NamedCurves.nistP256 );
 
@@ -106,18 +114,7 @@ public sealed partial class KeygenCommand : Command<KeygenCommand.Settings>
         var kid = Convert.ToHexStringLower( SHA256.HashData( spki ) );
 
         // Private key (PKCS#8 PEM)
-        var privateKeyBytes = ecdsa.ExportPkcs8PrivateKey();
-
-        if ( writeToFile )
-        {
-            var privateKeyPath = Path.Combine( path, $"{kid}.key" );
-            var privateKeyPem = PemEncoding.Write(
-                "PRIVATE KEY",
-                privateKeyBytes
-            );
-
-            File.WriteAllText( privateKeyPath, privateKeyPem );
-        }
+        var privateKey = ecdsa.ExportPkcs8PrivateKey();
 
         // Convert to JWK
         var key = new ECDsaSecurityKey( ecdsa ) { KeyId = kid };
@@ -132,50 +129,7 @@ public sealed partial class KeygenCommand : Command<KeygenCommand.Settings>
             jwk.AdditionalData["name"] = name;
         }
 
-        return (jwk, Convert.ToBase64String( privateKeyBytes ) );
-    }
-
-    private static void AddJsonWebKey( JsonWebKey jwk, string path )
-    {
-        var jwksPath = Path.Combine( path, "jwks.json" );
-
-        var jwks = JsonWebKeySet.Create( File.ReadAllText( jwksPath ) );
-
-        jwks.Keys.Add( jwk );
-
-        File.WriteAllBytes(
-            jwksPath,
-            Json.SerializeToUtf8Bytes( jwks )
-        );
-    }
-
-    private static void ExportJsonWebKey( JsonWebKey jwk, string keyBase64, string? outputPath )
-    {
-        var jwksJson = Json.Serialize( new JsonWebKeySet { Keys = { jwk } } );
-
-        if ( !string.IsNullOrEmpty( outputPath ) )
-        {
-            var jskwFilepath = Path.Combine( outputPath, "jwks.json" );
-            var keyFilepath = Path.Combine( outputPath, $"private_key.pem" );
-
-            File.WriteAllText( jskwFilepath, jwksJson );
-
-            var privateKeyBytes = Convert.FromBase64String( keyBase64 );
-            var privateKeyPem = PemEncoding.Write(
-                "PRIVATE KEY",
-                privateKeyBytes
-            );
-
-            File.WriteAllText( keyFilepath, privateKeyPem );
-        }
-        else
-        {
-            Console.WriteLine( "# JWKS" );
-            Console.WriteLine( jwksJson );
-            Console.WriteLine();
-            Console.WriteLine( "# PEM Private Key Base64" );
-            Console.WriteLine( keyBase64 );
-        }
+        return (jwk, privateKey );
     }
 
     [System.Text.RegularExpressions.GeneratedRegex( @"^[a-zA-Z0-9_-]+$" )]
