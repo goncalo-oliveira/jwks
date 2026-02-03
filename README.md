@@ -19,7 +19,7 @@ To be able to issue and verify tokens, the JWKS must first be initialized. This 
 jwks init
 ```
 
-This command creates a new JWKS with a signing key pair. By default, it creates the JWKS in a `.jwks` folder within the user's home directory. To indicate an explicit path (e.g., project-specific), use it as an argument:
+This command creates a new JWKS store. By default, it creates the JWKS in a `.jwks` folder within the user's home directory. To indicate an explicit path (e.g., project-specific), use it as an argument:
 
 ```bash
 jwks init .
@@ -35,12 +35,12 @@ jwks status
 
 ## Order of Precedence
 
-When using the JWKS tool, it determines which JWKS to use based on a certain order of precedence, if no explicit path is provided:
+The command-line tool determines which JWKS to use based on a certain order of precedence, if no explicit path is provided:
 
 1. **Current Directory**: The tool checks for a `.jwks` folder in the current working directory and uses it if found.
 2. **Global JWKS**: The tool checks for a `.jwks` folder in the user's home directory and uses it if found.
 
-Most commands (except `init`) support the `--jwks-path` option to explicitly specify the path to the JWKS, ignoring the order of precedence.
+Most commands (except `init`) support the `--jwks-path` option to explicitly specify the path to the JWKS, skipping the order of precedence.
 
 ## Generating Keys
 
@@ -58,7 +58,7 @@ jwks keygen --export --out .
 
 ## Issuing Tokens
 
-To issue a new JWT using the JWKS, use the `token` command:
+To issue a new JWT token using the JWKS, use the `token` command:
 
 ```bash
 jwks token --aud your-audience --sub your-subject --claim key1=value1 --claim key2=value2
@@ -66,3 +66,5 @@ jwks token --aud your-audience --sub your-subject --claim key1=value1 --claim ke
 
 > [!TIP]
 > The `--aud` and `--sub` options are equivalent to `--claim aud=...` and `--claim sub=...`, respectively.
+
+The `iss` (issuer) claim is automatically set to `https://jwks.local` and cannot be overridden. The `jti` (JWT ID) and `iat` (issued at) claims are also automatically set.
